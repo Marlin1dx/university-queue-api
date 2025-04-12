@@ -37,7 +37,7 @@ class QueueController extends Controller
                 'status' => 'waiting',
             ]);
 
-            // Триггерим событие обновления очереди
+            
             Event::dispatch(new QueueUpdated($queue->id, $newPosition));
 
             return response()->json([
@@ -85,7 +85,7 @@ class QueueController extends Controller
 
         $queueUser->delete();
 
-        // Триггерим событие обновления очереди
+     
         Event::dispatch(new QueueUpdated($queueId, $queueUser->position));
 
         return response()->json([

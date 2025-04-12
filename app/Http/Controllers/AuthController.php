@@ -3,7 +3,6 @@
 namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Auth;
 use Tymon\JWTAuth\Facades\JWTAuth;
 use App\Models\User;
 use Illuminate\Support\Facades\Hash;
@@ -13,8 +12,10 @@ class AuthController extends Controller
 {
     public function login(Request $request)
     {
+        // Проверка наличия email и пароля в запросе
         $credentials = $request->only('email', 'password');
 
+        // Попытка аутентификации
         if (!$token = JWTAuth::attempt($credentials)) {
             return response()->json(['error' => 'Unauthorized'], 401);
         }
@@ -24,6 +25,7 @@ class AuthController extends Controller
 
     public function register(Request $request)
     {
+        // Валидация данных
         $validator = Validator::make($request->all(), [
             'name' => 'required|string|max:255',
             'email' => 'required|string|email|max:255|unique:users',
@@ -34,15 +36,20 @@ class AuthController extends Controller
             return response()->json($validator->errors(), 422);
         }
 
+        // Создание пользователя
         $user = User::create([
             'name' => $request->name,
             'email' => $request->email,
-            'password' => Hash::make($request->password),
+            'password' => bcrypt($request->password), // Захешировать пароль
         ]);
 
+        // Назначение роли пользователю (по умолчанию роль 'user')
+        $user->assignRole('user');
+
+        // Генерация JWT токена
         $token = JWTAuth::fromUser($user);
 
-        return response()->json(compact('user', 'token'), 201);
+        return response()->json(compact('user', 'token'));
     }
 
     protected function respondWithToken($token)
@@ -50,7 +57,7 @@ class AuthController extends Controller
         return response()->json([
             'access_token' => $token,
             'token_type' => 'bearer',
-            'expires_in' => config('jwt.ttl') * 60
+            'expires_in' => JWTAuth::factory()->getTTL() * 60
         ]);
     }
 }

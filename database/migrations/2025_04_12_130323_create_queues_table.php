@@ -11,7 +11,7 @@ return new class extends Migration
 {
     Schema::create('queues', function (Blueprint $table) {
         $table->id();
-        $table->string('name'); // Пример: "Приемная комиссия факультета X"
+        $table->string('name'); 
         $table->integer('current_position')->default(0);
         $table->timestamps();
     });

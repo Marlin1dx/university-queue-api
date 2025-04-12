@@ -2,26 +2,21 @@
 
 namespace App\Models;
 
-use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
-use Illuminate\Foundation\Auth\User as Authenticatable;
-use Illuminate\Notifications\Notifiable;
+use Illuminate\Database\Eloquent\Model;
 use Tymon\JWTAuth\Contracts\JWTSubject;
+use Spatie\Permission\Traits\HasRoles;
 
 class User extends Authenticatable implements JWTSubject
 {
-    use HasFactory, Notifiable;
+    use HasFactory, Notifiable, HasRoles;
 
     protected $fillable = [
-        'name',
-        'email',
-        'password',
-        'phone',
+        'name', 'email', 'password', 'phone',
     ];
 
     protected $hidden = [
-        'password',
-        'remember_token',
+        'password', 'remember_token',
     ];
 
     public function getJWTIdentifier()
@@ -34,16 +29,11 @@ class User extends Authenticatable implements JWTSubject
         return [];
     }
 
-    // Отношения с очередями
+    // Дополнительно: связь с очередями
     public function queues()
     {
         return $this->belongsToMany(Queue::class, 'queue_user')
-            ->withPivot('position', 'status')
-            ->withTimestamps();
-    }
-
-    public function queueUsers()
-    {
-        return $this->hasMany(QueueUser::class);
+                    ->withPivot('position', 'status')
+                    ->withTimestamps();
     }
 }
