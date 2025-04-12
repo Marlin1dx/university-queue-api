@@ -2,10 +2,12 @@
 
 namespace App\Http\Controllers;
 
-use Illuminate\Http\Request;
+use App\Events\QueueUpdated;
 use App\Models\Queue;
 use App\Models\QueueUser;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Event;
 
 class QueueController extends Controller
 {
@@ -17,29 +19,40 @@ class QueueController extends Controller
 
     public function joinQueue(Request $request, $queueId)
     {
-        $user = Auth::user();
-        $queue = Queue::findOrFail($queueId);
+        try {
+            $user = Auth::user();
+            $queue = Queue::findOrFail($queueId);
 
-        // Проверка на существующую запись
-        if ($user->queues()->where('queue_id', $queueId)->exists()) {
-            return response()->json(['error' => 'User already in queue'], 409);
+            if ($user->queues()->where('queue_id', $queueId)->exists()) {
+                return response()->json(['error' => 'Вы уже записаны в эту очередь'], 409);
+            }
+
+            $lastPosition = $queue->users()->max('position') ?? 0;
+            $newPosition = $lastPosition + 1;
+
+            $queueUser = QueueUser::create([
+                'user_id' => $user->id,
+                'queue_id' => $queue->id,
+                'position' => $newPosition,
+                'status' => 'waiting',
+            ]);
+
+            // Триггерим событие обновления очереди
+            Event::dispatch(new QueueUpdated($queue->id, $newPosition));
+
+            return response()->json([
+                'message' => 'Вы успешно записаны в очередь',
+                'position' => $newPosition,
+                'total_in_queue' => $newPosition,
+                'queue' => $queue->name
+            ], 201);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'error' => 'Ошибка записи в очередь',
+                'details' => $e->getMessage()
+            ], 500);
         }
-
-        $lastPosition = $queue->users()->max('position') ?? 0;
-        $newPosition = $lastPosition + 1;
-
-        $queueUser = QueueUser::create([
-            'user_id' => $user->id,
-            'queue_id' => $queue->id,
-            'position' => $newPosition,
-            'status' => 'waiting',
-        ]);
-
-        return response()->json([
-            'message' => 'Successfully joined queue',
-            'position' => $newPosition,
-            'queue' => $queue->name
-        ], 201);
     }
 
     public function getStatus()
@@ -52,12 +65,13 @@ class QueueController extends Controller
             ->first();
 
         if (!$activeQueue) {
-            return response()->json(['message' => 'No active queue'], 404);
+            return response()->json(['message' => 'Нет активных записей в очередь'], 404);
         }
 
         return response()->json([
             'queue' => $activeQueue->queue->name,
             'position' => $activeQueue->position,
+            'total_in_queue' => $activeQueue->queue->users()->count(),
             'status' => $activeQueue->status
         ]);
     }
@@ -71,6 +85,12 @@ class QueueController extends Controller
 
         $queueUser->delete();
 
-        return response()->json(['message' => 'Queue cancelled']);
+        // Триггерим событие обновления очереди
+        Event::dispatch(new QueueUpdated($queueId, $queueUser->position));
+
+        return response()->json([
+            'message' => 'Запись в очередь отменена',
+            'canceled_position' => $queueUser->position
+        ]);
     }
 }
